@@ -1,3 +1,30 @@
 <resources>
-    <string name="app_name">Trip_advisor</string>
+    <string name="app_name">Trip Advisor</string>
+    <!-- Bottom Nav -->
+    <string name="nav_home">내 여행</string>
+    <string name="nav_add_trip">기록 추가</string>
+    <!-- Home Fragment -->
+    <string name="home_title">내 여행 기록</string>
+    <string name="home_empty_title">아직 여행 기록이 없어요</string>
+    <string name="home_empty_desc">아래 버튼을 눌러 첫 번째 여행을 기록해보세요!</string>
+    <string name="home_trip_count">%d개의 여행</string>
+    <!-- Add/Edit Fragment -->
+    <string name="add_trip_title">새 여행 기록</string>
+    <string name="edit_trip_title">여행 기록 수정</string>
+    <string name="hint_title">여행 제목 *</string>
+    <string name="hint_destination">여행지 *</string>
+    <string name="hint_start_date">출발 날짜 *</string>
+    <string name="hint_end_date">귀국 날짜 *</string>
+    <string name="hint_description">여행 메모</string>
+    <string name="label_rating">평점</string>
+    <string name="btn_save">저장하기</string>
+    <string name="btn_delete">삭제</string>
+    <string name="error_required">필수 입력 항목입니다</string>
+    <string name="error_date">날짜를 선택해주세요</string>
+    <string name="msg_saved">여행 기록이 저장되었습니다</string>
+    <string name="msg_deleted">여행 기록이 삭제되었습니다</string>
+    <string name="dialog_delete_title">여행 삭제</string>
+    <string name="dialog_delete_msg">이 여행 기록을 삭제할까요?</string>
+    <string name="dialog_confirm">삭제</string>
+    <string name="dialog_cancel">취소</string>
 </resources>

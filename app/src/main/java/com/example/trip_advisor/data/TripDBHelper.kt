@@ -11,7 +11,7 @@ class TripDBHelper(context: Context) :
 
     companion object {
         const val DATABASE_NAME = "trip_advisor.db"
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
 
         // Table
         const val TABLE_TRIPS = "trips"
@@ -43,11 +43,56 @@ class TripDBHelper(context: Context) :
             )
         """.trimIndent()
         db.execSQL(createTable)
+
+        val createImagesTable = """
+            CREATE TABLE trip_images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trip_id INTEGER NOT NULL,
+                image_path TEXT NOT NULL,
+                is_representative INTEGER DEFAULT 0,
+                FOREIGN KEY(trip_id) REFERENCES $TABLE_TRIPS($COL_ID) ON DELETE CASCADE
+            )
+        """.trimIndent()
+        db.execSQL(createImagesTable)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_TRIPS")
-        onCreate(db)
+        if (oldVersion < 3) {
+            // Create trip_images table if not exists
+            val createImagesTable = """
+                CREATE TABLE IF NOT EXISTS trip_images (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trip_id INTEGER NOT NULL,
+                    image_path TEXT NOT NULL,
+                    is_representative INTEGER DEFAULT 0,
+                    FOREIGN KEY(trip_id) REFERENCES $TABLE_TRIPS($COL_ID) ON DELETE CASCADE
+                )
+            """.trimIndent()
+            db.execSQL(createImagesTable)
+
+            // Migrate existing single image paths
+            try {
+                val cursor = db.query(TABLE_TRIPS, arrayOf(COL_ID, COL_IMAGE_PATH), "$COL_IMAGE_PATH IS NOT NULL AND $COL_IMAGE_PATH != ''", null, null, null, null)
+                cursor.use {
+                    while (it.moveToNext()) {
+                        val tripId = it.getInt(it.getColumnIndexOrThrow(COL_ID))
+                        val imagePath = it.getString(it.getColumnIndexOrThrow(COL_IMAGE_PATH))
+                        val values = ContentValues().apply {
+                            put("trip_id", tripId)
+                            put("image_path", imagePath)
+                            put("is_representative", 1)
+                        }
+                        db.insert("trip_images", null, values)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        } else {
+            db.execSQL("DROP TABLE IF EXISTS trip_images")
+            db.execSQL("DROP TABLE IF EXISTS $TABLE_TRIPS")
+            onCreate(db)
+        }
     }
 
     // ─── CREATE ────────────────────────────────────────────────────────────────
@@ -97,12 +142,79 @@ class TripDBHelper(context: Context) :
 
     fun deleteTrip(id: Int): Int {
         val db = writableDatabase
+        db.delete("trip_images", "trip_id = ?", arrayOf(id.toString()))
         return db.delete(TABLE_TRIPS, "$COL_ID = ?", arrayOf(id.toString()))
     }
 
     fun deleteAllTrips(): Int {
         val db = writableDatabase
+        db.delete("trip_images", null, null)
         return db.delete(TABLE_TRIPS, null, null)
+    }
+
+    // ─── TRIP IMAGES OPERATIONS ────────────────────────────────────────────────
+
+    fun getImagesForTrip(tripId: Int): List<TripImage> {
+        val images = mutableListOf<TripImage>()
+        val db = readableDatabase
+        val cursor = db.query(
+            "trip_images", null,
+            "trip_id = ?", arrayOf(tripId.toString()),
+            null, null, "id ASC"
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                val path = it.getString(it.getColumnIndexOrThrow("image_path"))
+                val isRep = it.getInt(it.getColumnIndexOrThrow("is_representative")) == 1
+                images.add(TripImage(path, isRep))
+            }
+        }
+        return images
+    }
+
+    fun saveImagesForTrip(tripId: Int, images: List<TripImage>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            // 1. Delete existing images
+            db.delete("trip_images", "trip_id = ?", arrayOf(tripId.toString()))
+
+            // 2. Insert new images
+            var repImagePath: String? = null
+            for (image in images) {
+                val values = ContentValues().apply {
+                    put("trip_id", tripId)
+                    put("image_path", image.imagePath)
+                    put("is_representative", if (image.isRepresentative) 1 else 0)
+                }
+                db.insert("trip_images", null, values)
+                if (image.isRepresentative) {
+                    repImagePath = image.imagePath
+                }
+            }
+
+            // If no image was representative but list is not empty, set first one as representative
+            if (repImagePath == null && images.isNotEmpty()) {
+                repImagePath = images[0].imagePath
+                val updateValues = ContentValues().apply {
+                    put("is_representative", 1)
+                }
+                db.update("trip_images", updateValues, "trip_id = ? AND image_path = ?", arrayOf(tripId.toString(), repImagePath))
+                
+                // Update local memory object too if needed (it will be saved to trips table)
+                images[0].isRepresentative = true
+            }
+
+            // 3. Update representative image path in trips table
+            val tripValues = ContentValues().apply {
+                put(COL_IMAGE_PATH, repImagePath)
+            }
+            db.update(TABLE_TRIPS, tripValues, "$COL_ID = ?", arrayOf(tripId.toString()))
+
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
     }
 
     // ─── HELPERS ───────────────────────────────────────────────────────────────

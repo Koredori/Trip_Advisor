@@ -175,6 +175,16 @@
                     tools:src="@android:drawable/ic_menu_gallery" />
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Thumbnails RecyclerView -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_detail_thumbnails"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="12dp"
+                android:visibility="gone"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 

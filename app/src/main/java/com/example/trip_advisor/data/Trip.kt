@@ -11,3 +11,9 @@ data class Trip(
     val imagePath: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 )
+
+data class TripImage(
+    val imagePath: String,
+    var isRepresentative: Boolean
+)
+

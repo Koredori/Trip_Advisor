@@ -14,6 +14,11 @@ import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.example.trip_advisor.R
 import com.example.trip_advisor.data.TripDBHelper
+import android.content.Context
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.card.MaterialCardView
+import com.example.trip_advisor.data.TripImage
 import com.example.trip_advisor.ui.addtrip.AddTripActivity
 import java.io.File
 
@@ -43,6 +48,11 @@ class TripDetailFragment : Fragment() {
     private lateinit var tvDates: TextView
     private lateinit var tvDescription: TextView
 
+    private lateinit var rvDetailThumbnails: RecyclerView
+    private lateinit var thumbnailsAdapter: DetailThumbnailsAdapter
+    private val imagesList = mutableListOf<TripImage>()
+    private var selectedImagePosition = 0
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -58,6 +68,7 @@ class TripDetailFragment : Fragment() {
         dbHelper = TripDBHelper(requireContext())
 
         bindViews(view)
+        setupThumbnailsRecyclerView()
         setupListeners()
     }
 
@@ -77,6 +88,7 @@ class TripDetailFragment : Fragment() {
         tvTitle       = view.findViewById(R.id.tv_detail_title)
         tvDates       = view.findViewById(R.id.tv_detail_dates)
         tvDescription = view.findViewById(R.id.tv_detail_description)
+        rvDetailThumbnails = view.findViewById(R.id.rv_detail_thumbnails)
     }
 
     private fun setupListeners() {
@@ -107,12 +119,24 @@ class TripDetailFragment : Fragment() {
         tvRating.text = "⭐ ${"%.1f".format(trip.rating)}"
         tvDescription.text = trip.description.ifBlank { "작성된 메모가 없습니다." }
 
-        // Bind image if it exists
-        if (!trip.imagePath.isNullOrBlank() && File(trip.imagePath).exists()) {
-            cardDetailImage.visibility = View.VISIBLE
-            ivDetailImage.setImageURI(Uri.fromFile(File(trip.imagePath)))
+        imagesList.clear()
+        imagesList.addAll(dbHelper.getImagesForTrip(tripId))
+
+        if (imagesList.isNotEmpty()) {
+            val repIndex = imagesList.indexOfFirst { it.isRepresentative }
+            selectedImagePosition = if (repIndex != -1) repIndex else 0
+            thumbnailsAdapter.updateSelectedPosition(selectedImagePosition)
+
+            displaySelectedImage(imagesList[selectedImagePosition].imagePath)
+
+            if (imagesList.size > 1) {
+                rvDetailThumbnails.visibility = View.VISIBLE
+            } else {
+                rvDetailThumbnails.visibility = View.GONE
+            }
         } else {
             cardDetailImage.visibility = View.GONE
+            rvDetailThumbnails.visibility = View.GONE
         }
     }
 
@@ -135,5 +159,74 @@ class TripDetailFragment : Fragment() {
             }
             .setNegativeButton(R.string.dialog_cancel, null)
             .show()
+    }
+
+    private fun setupThumbnailsRecyclerView() {
+        thumbnailsAdapter = DetailThumbnailsAdapter(
+            images = imagesList,
+            selectedPosition = selectedImagePosition,
+            onThumbnailClick = { position ->
+                selectedImagePosition = position
+                thumbnailsAdapter.updateSelectedPosition(position)
+                displaySelectedImage(imagesList[position].imagePath)
+            }
+        )
+        rvDetailThumbnails.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        rvDetailThumbnails.adapter = thumbnailsAdapter
+    }
+
+    private fun displaySelectedImage(path: String) {
+        if (File(path).exists()) {
+            cardDetailImage.visibility = View.VISIBLE
+            ivDetailImage.setImageURI(Uri.fromFile(File(path)))
+        } else {
+            cardDetailImage.visibility = View.GONE
+        }
+    }
+}
+
+class DetailThumbnailsAdapter(
+    private val images: List<TripImage>,
+    private var selectedPosition: Int,
+    private val onThumbnailClick: (Int) -> Unit
+) : RecyclerView.Adapter<DetailThumbnailsAdapter.ViewHolder>() {
+
+    inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val ivThumbnail: ImageView = view.findViewById(R.id.iv_thumbnail)
+        val cardContainer: MaterialCardView = view.findViewById(R.id.card_thumbnail_container)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_detail_thumbnail, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val image = images[position]
+        holder.ivThumbnail.setImageURI(Uri.fromFile(File(image.imagePath)))
+
+        if (position == selectedPosition) {
+            holder.cardContainer.strokeWidth = dpToPx(holder.itemView.context, 2)
+        } else {
+            holder.cardContainer.strokeWidth = 0
+        }
+
+        holder.itemView.setOnClickListener {
+            onThumbnailClick(position)
+        }
+    }
+
+    override fun getItemCount(): Int = images.size
+
+    fun updateSelectedPosition(newPosition: Int) {
+        val oldPosition = selectedPosition
+        selectedPosition = newPosition
+        notifyItemChanged(oldPosition)
+        notifyItemChanged(newPosition)
+    }
+
+    private fun dpToPx(context: Context, dp: Int): Int {
+        val density = context.resources.displayMetrics.density
+        return (dp * density).toInt()
     }
 }

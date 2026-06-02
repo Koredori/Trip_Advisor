@@ -2,7 +2,10 @@ package com.example.trip_advisor
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.ImageButton
+import android.widget.PopupMenu
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.trip_advisor.ui.addtrip.AddTripActivity
@@ -16,6 +19,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // 숨겨진 Toolbar를 SupportActionBar로 등록 → Fragment의 옵션 메뉴(setHasOptionsMenu) 활성화
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())

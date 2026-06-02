@@ -48,6 +48,22 @@ class HomeFragment : Fragment() {
         layoutEmpty  = view.findViewById(R.id.layout_empty)
         tvTripCount  = view.findViewById(R.id.tv_trip_count)
 
+        // 헤더 우측 ⋮ 버튼 → PopupMenu 연결
+        val btnOverflow = view.findViewById<android.widget.ImageButton>(R.id.btn_overflow_menu)
+        btnOverflow.setOnClickListener { anchor ->
+            val popup = android.widget.PopupMenu(requireContext(), anchor)
+            popup.menuInflater.inflate(R.menu.home_menu, popup.menu)
+            popup.setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    R.id.action_sort_date   -> { currentSortOrder = "date";   loadTrips(); true }
+                    R.id.action_sort_rating -> { currentSortOrder = "rating"; loadTrips(); true }
+                    R.id.action_delete_all  -> { confirmDeleteAll(); true }
+                    else -> false
+                }
+            }
+            popup.show()
+        }
+
         adapter = TripAdapter(
             trips = mutableListOf(),
             onItemClick = { trip -> navigateToDetail(trip) },

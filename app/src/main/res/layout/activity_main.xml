@@ -7,6 +7,13 @@
     android:orientation="vertical"
     android:background="@color/background">
 
+    <!-- 옵션 메뉴(정렬/삭제)를 활성화하기 위한 Toolbar. 시각적으로는 숨기고 액션바로만 사용 -->
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/fragment_container"
         android:layout_width="match_parent"

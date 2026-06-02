@@ -1,11 +1,14 @@
 package com.example.trip_advisor.ui.addtrip
 
+import android.Manifest
 import android.app.DatePickerDialog
 import android.app.Dialog
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -21,6 +24,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.example.trip_advisor.R
 import com.example.trip_advisor.data.Trip
 import com.example.trip_advisor.data.TripDBHelper
@@ -36,6 +41,11 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.io.File
 import java.io.FileOutputStream
+import android.content.Context
+import android.view.LayoutInflater
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.trip_advisor.data.TripImage
 import java.util.Calendar
 import java.util.Locale
 import kotlin.concurrent.thread
@@ -71,19 +81,51 @@ class AddTripActivity : AppCompatActivity() {
     private lateinit var ivSelectedImage: ImageView
     private lateinit var btnRemoveImage: ImageButton
 
-    private var selectedImagePath: String? = null
+    private lateinit var btnAddPhotos: MaterialButton
+    private lateinit var rvSelectedImages: RecyclerView
+    private lateinit var imagesAdapter: SelectedImagesAdapter
+    private val selectedImagesList = mutableListOf<TripImage>()
+
     private var tripId: Int = NO_ID
     private var isEditMode = false
 
-    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
+    private val pickImagesLauncher = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            for (uri in uris) {
+                val localPath = saveImageToInternalStorage(uri)
+                if (localPath != null) {
+                    val isFirst = selectedImagesList.isEmpty()
+                    selectedImagesList.add(TripImage(imagePath = localPath, isRepresentative = isFirst))
+                }
+            }
+            updateImagesUI()
+        }
+    }
+
+    // 카메라로 찍은 사진의 임시 저장 URI
+    private var cameraImageUri: Uri? = null
+
+    // 카메라 촬영 결과 처리
+    private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success) {
+            val uri = cameraImageUri ?: return@registerForActivityResult
             val localPath = saveImageToInternalStorage(uri)
             if (localPath != null) {
-                selectedImagePath = localPath
-                showSelectedImage(localPath)
+                val isFirst = selectedImagesList.isEmpty()
+                selectedImagesList.add(TripImage(imagePath = localPath, isRepresentative = isFirst))
+                updateImagesUI()
             } else {
-                Toast.makeText(this, "사진을 저장하지 못했습니다.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "사진 저장에 실패했습니다.", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    // 카메라 권한 요청 런처
+    private val requestCameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        if (isGranted) {
+            launchCamera()
+        } else {
+            Toast.makeText(this, "카메라 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -97,6 +139,7 @@ class AddTripActivity : AppCompatActivity() {
         dbHelper = TripDBHelper(this)
 
         bindViews()
+        setupImagesRecyclerView()
         setupListeners()
 
         if (isEditMode) {
@@ -125,6 +168,8 @@ class AddTripActivity : AppCompatActivity() {
         layoutHasImage  = findViewById(R.id.layout_has_image)
         ivSelectedImage = findViewById(R.id.iv_selected_image)
         btnRemoveImage  = findViewById(R.id.btn_remove_image)
+        btnAddPhotos     = findViewById(R.id.btn_add_photos)
+        rvSelectedImages = findViewById(R.id.rv_selected_images)
     }
 
     private fun setupListeners() {
@@ -138,8 +183,44 @@ class AddTripActivity : AppCompatActivity() {
 
         btnSave.setOnClickListener { saveTrip() }
         btnDelete.setOnClickListener { confirmDelete() }
-        cardSelectImage.setOnClickListener { pickImageLauncher.launch("image/*") }
-        btnRemoveImage.setOnClickListener { clearSelectedImage() }
+        cardSelectImage.setOnClickListener { showImageSourceDialog() }
+        btnAddPhotos.setOnClickListener { showImageSourceDialog() }
+    }
+
+    /** 사진 추가 방법 선택 다이얼로그 (갤러리 / 카메라) */
+    private fun showImageSourceDialog() {
+        val options = arrayOf("📷  카메라로 촬영", "🖼️  갤러리에서 선택")
+        AlertDialog.Builder(this)
+            .setTitle("사진 추가")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> checkCameraPermissionAndLaunch()
+                    1 -> pickImagesLauncher.launch("image/*")
+                }
+            }
+            .show()
+    }
+
+    /** 카메라 권한 확인 후 촬영 실행 */
+    private fun checkCameraPermissionAndLaunch() {
+        when {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                    == PackageManager.PERMISSION_GRANTED -> launchCamera()
+            else -> requestCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    /** 카메라 앱 실행 - 임시 파일 URI 생성 후 TakePicture 계약으로 실행 */
+    private fun launchCamera() {
+        val picturesDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: filesDir
+        val tempFile = File(picturesDir, "camera_${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(
+            this,
+            "${packageName}.fileprovider",
+            tempFile
+        )
+        cameraImageUri = uri
+        takePictureLauncher.launch(uri)
     }
 
     private fun loadTripForEdit() {
@@ -155,12 +236,9 @@ class AddTripActivity : AppCompatActivity() {
         tvRatingValue.text    = "%.1f".format(trip.rating)
         btnDelete.visibility  = View.VISIBLE
 
-        selectedImagePath     = trip.imagePath
-        if (!selectedImagePath.isNullOrBlank()) {
-            showSelectedImage(selectedImagePath!!)
-        } else {
-            clearSelectedImage()
-        }
+        selectedImagesList.clear()
+        selectedImagesList.addAll(dbHelper.getImagesForTrip(tripId))
+        updateImagesUI()
     }
 
     private fun showDatePicker(targetField: TextInputEditText) {
@@ -180,6 +258,11 @@ class AddTripActivity : AppCompatActivity() {
     private fun saveTrip() {
         if (!validateForm()) return
 
+        val repImage = selectedImagesList.find { it.isRepresentative } ?: selectedImagesList.firstOrNull()
+        if (repImage != null) {
+            repImage.isRepresentative = true
+        }
+
         val trip = Trip(
             id          = if (isEditMode) tripId else 0,
             title       = etTitle.text.toString().trim(),
@@ -188,14 +271,19 @@ class AddTripActivity : AppCompatActivity() {
             endDate     = etEndDate.text.toString(),
             description = etDescription.text.toString().trim(),
             rating      = ratingBar.rating,
-            imagePath   = selectedImagePath,
+            imagePath   = repImage?.imagePath,
             createdAt   = System.currentTimeMillis()
         )
 
-        if (isEditMode) {
+        val savedTripId = if (isEditMode) {
             dbHelper.updateTrip(trip)
+            tripId.toLong()
         } else {
             dbHelper.insertTrip(trip)
+        }
+
+        if (savedTripId > 0) {
+            dbHelper.saveImagesForTrip(savedTripId.toInt(), selectedImagesList)
         }
 
         Toast.makeText(this, R.string.msg_saved, Toast.LENGTH_SHORT).show()
@@ -267,18 +355,7 @@ class AddTripActivity : AppCompatActivity() {
         }
     }
 
-    private fun showSelectedImage(path: String) {
-        ivSelectedImage.setImageURI(Uri.fromFile(File(path)))
-        layoutNoImage.visibility = View.GONE
-        layoutHasImage.visibility = View.VISIBLE
-    }
 
-    private fun clearSelectedImage() {
-        selectedImagePath = null
-        ivSelectedImage.setImageDrawable(null)
-        layoutNoImage.visibility = View.VISIBLE
-        layoutHasImage.visibility = View.GONE
-    }
 
     private fun showMapPickerDialog() {
         val dialog = Dialog(this)
@@ -447,5 +524,82 @@ class AddTripActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun setupImagesRecyclerView() {
+        imagesAdapter = SelectedImagesAdapter(
+            images = selectedImagesList,
+            onImageClick = { position ->
+                for (i in selectedImagesList.indices) {
+                    selectedImagesList[i].isRepresentative = (i == position)
+                }
+                imagesAdapter.notifyDataSetChanged()
+            },
+            onDeleteClick = { position ->
+                val wasRepresentative = selectedImagesList[position].isRepresentative
+                selectedImagesList.removeAt(position)
+                if (wasRepresentative && selectedImagesList.isNotEmpty()) {
+                    selectedImagesList[0].isRepresentative = true
+                }
+                updateImagesUI()
+            }
+        )
+        rvSelectedImages.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        rvSelectedImages.adapter = imagesAdapter
+    }
+
+    private fun updateImagesUI() {
+        if (selectedImagesList.isEmpty()) {
+            cardSelectImage.visibility = View.VISIBLE
+            rvSelectedImages.visibility = View.GONE
+            btnAddPhotos.visibility = View.GONE
+        } else {
+            cardSelectImage.visibility = View.GONE
+            rvSelectedImages.visibility = View.VISIBLE
+            btnAddPhotos.visibility = View.VISIBLE
+        }
+        imagesAdapter.notifyDataSetChanged()
+    }
+}
+
+class SelectedImagesAdapter(
+    private val images: List<TripImage>,
+    private val onImageClick: (Int) -> Unit,
+    private val onDeleteClick: (Int) -> Unit
+) : RecyclerView.Adapter<SelectedImagesAdapter.ViewHolder>() {
+
+    inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val ivImage: ImageView = view.findViewById(R.id.iv_image)
+        val tvBadge: TextView = view.findViewById(R.id.tv_representative_badge)
+        val btnDelete: ImageButton = view.findViewById(R.id.btn_delete)
+        val cardContainer: MaterialCardView = view.findViewById(R.id.card_image_container)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_selected_image, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val image = images[position]
+        holder.ivImage.setImageURI(Uri.fromFile(File(image.imagePath)))
+        
+        if (image.isRepresentative) {
+            holder.tvBadge.visibility = View.VISIBLE
+            holder.cardContainer.strokeWidth = dpToPx(holder.itemView.context, 2)
+        } else {
+            holder.tvBadge.visibility = View.GONE
+            holder.cardContainer.strokeWidth = 0
+        }
+
+        holder.cardContainer.setOnClickListener { onImageClick(position) }
+        holder.btnDelete.setOnClickListener { onDeleteClick(position) }
+    }
+
+    override fun getItemCount(): Int = images.size
+
+    private fun dpToPx(context: Context, dp: Int): Int {
+        val density = context.resources.displayMetrics.density
+        return (dp * density).toInt()
     }
 }

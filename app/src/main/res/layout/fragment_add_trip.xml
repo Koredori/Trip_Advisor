@@ -216,14 +216,43 @@
                     android:gravity="top" />
             </com.google.android.material.textfield.TextInputLayout>
 
-            <!-- Photo Selection Section -->
-            <TextView
-                android:layout_width="wrap_content"
+            <!-- Photo Selection Section Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:text="여행 사진"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="여행 사진"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_add_photos"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="+ 사진 추가"
+                    android:textSize="13sp"
+                    android:textColor="@color/primary"
+                    android:padding="0dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- Selected Images RecyclerView -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_selected_images"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="24dp"
+                android:visibility="gone"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/card_select_image"

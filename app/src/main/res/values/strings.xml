@@ -14,7 +14,7 @@
     <string name="hint_title">여행 제목 *</string>
     <string name="hint_destination">여행지 *</string>
     <string name="hint_start_date">출발 날짜 *</string>
-    <string name="hint_end_date">귀국 날짜 *</string>
+    <string name="hint_end_date">도착 날짜 *</string>
     <string name="hint_description">여행 메모</string>
     <string name="label_rating">평점</string>
     <string name="btn_save">저장하기</string>

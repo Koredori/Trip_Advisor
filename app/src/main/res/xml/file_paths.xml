@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 카메라로 찍은 임시 사진 저장 경로 (getExternalFilesDir) -->
+    <external-files-path
+        name="camera_images"
+        path="Pictures/" />
+    <!-- 내부 저장소 경로 (filesDir) -->
+    <files-path
+        name="internal_images"
+        path="." />
+</paths>
